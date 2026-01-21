@@ -49,6 +49,47 @@ void printData()
 
 namespace hise { using namespace juce;
 
+namespace
+{
+void installBackendCrashHandler()
+{
+	static bool installed = false;
+
+	if (installed)
+		return;
+
+	installed = true;
+
+	SystemStats::setApplicationCrashHandler([](void*)
+	{
+		static bool handling = false;
+
+		if (handling)
+			return;
+
+		handling = true;
+
+		auto crashDir = File::getSpecialLocation(File::userApplicationDataDirectory)
+							.getChildFile("HISE")
+							.getChildFile("CrashLogs");
+
+		crashDir.createDirectory();
+
+		auto logFile = crashDir.getChildFile("HISE_CrashBacktrace.txt");
+		FileOutputStream stream(logFile);
+
+		if (stream.openedOk())
+		{
+			stream.setPosition(logFile.getSize());
+			stream << "----\n";
+			stream << Time::getCurrentTime().toString(true, true) << "\n";
+			stream << SystemStats::getStackBacktrace() << "\n";
+			stream.flush();
+		}
+	});
+}
+}
+
 
 	
 
@@ -274,6 +315,8 @@ BackendProcessor::BackendProcessor(AudioDeviceManager *deviceManager_/*=nullptr*
   autosaver(this),
   pluginParameterRamp(this)
 {
+	installBackendCrashHandler();
+
 	//printData();
     
 	ExtendedApiDocumentation::init();
